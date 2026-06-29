@@ -1,7 +1,7 @@
 import os
-import asyncpg
+import httpx
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Query, Depends, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -12,69 +12,19 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(parent_dir, '.env')
 load_dotenv(dotenv_path=env_path)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 app = FastAPI(title="MICE Tender Dashboard API", version="1.0.0")
 
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to specific Vercel domains or local port
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Startup database connection pool
-@app.on_event("startup")
-async def startup():
-    if DATABASE_URL:
-        try:
-            print("Initializing database connection pool on startup...")
-            app.state.pool = await asyncpg.create_pool(
-                DATABASE_URL,
-                min_size=1,
-                max_size=5,
-                max_inactive_connection_lifetime=300.0,
-                statement_cache_size=0
-            )
-            print("Database pool initialized successfully!")
-        except Exception as e:
-            print(f"Startup connection pool initialization bypassed: {e}")
-
-# Shutdown pool
-@app.on_event("shutdown")
-async def shutdown():
-    if hasattr(app.state, "pool") and app.state.pool is not None:
-        print("Closing database connection pool...")
-        await app.state.pool.close()
-        print("Database pool closed.")
-
-import asyncio
-
-# Dependency to get connection from pool
-async def get_db_conn(request: Request):
-    # Try to use request.app.state.pool if it is already initialized (for local dev)
-    if hasattr(request.app, "state") and hasattr(request.app.state, "pool") and request.app.state.pool is not None:
-        async with request.app.state.pool.acquire() as conn:
-            yield conn
-            return
-
-    # Fallback to direct single connection for Vercel Serverless environment
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        raise ValueError("DATABASE_URL environment variable is missing!")
-    
-    # Normalize postgres:// to postgresql://
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-        
-    conn = await asyncpg.connect(db_url, statement_cache_size=0)
-    try:
-        yield conn
-    finally:
-        await conn.close()
-
 
 # Pydantic models for request bodies
 class TenderUpdate(BaseModel):
@@ -89,113 +39,126 @@ class TenderUpdate(BaseModel):
 @app.get("/api/tenders")
 @app.get("/tenders")
 async def get_tenders(
-    conn = Depends(get_db_conn),
     sort: str = Query("latest", description="Sort order: 'latest', 'budget', 'deadline'"),
     search: Optional[str] = Query(None, description="Search term in title or organization"),
     category: Optional[str] = Query(None, description="Category filter (e.g. '국제회의', '컨퍼런스')"),
     status: Optional[str] = Query(None, description="Announced status (e.g. '입찰진행중', '마감', '취소')"),
     user_status: Optional[str] = Query(None, description="Internal user tracking status")
 ):
-    query = "SELECT * FROM public.tenders WHERE 1=1"
-    params = []
-    param_idx = 1
-    
-    if search:
-        query += f" AND (title ILIKE ${param_idx} OR org_name ILIKE ${param_idx} OR const_org_name ILIKE ${param_idx})"
-        params.append(f"%{search}%")
-        param_idx += 1
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(status_code=500, detail="Supabase environment variables are missing!")
         
+    url = f"{SUPABASE_URL}/rest/v1/tenders"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
+    }
+    
+    # Build PostgREST parameters
+    params = {}
+    
     if category:
-        query += f" AND category = ${param_idx}"
-        params.append(category)
-        param_idx += 1
-        
+        params["category"] = f"eq.{category}"
     if status:
-        query += f" AND status = ${param_idx}"
-        params.append(status)
-        param_idx += 1
-        
+        params["status"] = f"eq.{status}"
     if user_status:
-        query += f" AND user_status = ${param_idx}"
-        params.append(user_status)
-        param_idx += 1
+        params["user_status"] = f"eq.{user_status}"
+    if search:
+        # PostgREST OR filter: or=(title.ilike.*search*,org_name.ilike.*search*)
+        params["or"] = f"(title.ilike.*{search}*,org_name.ilike.*{search}*,const_org_name.ilike.*{search}*)"
         
-    # Apply sorting
+    # Sorting
     if sort == "budget":
-        query += " ORDER BY budget DESC, created_at DESC"
+        params["order"] = "budget.desc.nullslast"
     elif sort == "deadline":
-        # Keep null dates or closed bids at the end, show active soonest first
-        query += " ORDER BY CASE WHEN bid_end_date IS NULL THEN 1 ELSE 0 END, bid_end_date ASC, created_at DESC"
-    elif sort == "latest":
-        query += " ORDER BY bid_start_date DESC, created_at DESC"
-    else:
-        query += " ORDER BY created_at DESC"
+        params["order"] = "bid_end_date.asc.nullslast"
+    else: # latest
+        params["order"] = "bid_start_date.desc.nullslast"
         
-    query += " LIMIT 200"
+    params["limit"] = 200
     
     try:
-        rows = await conn.fetch(query, *params)
-        # Convert records to dictionary, datetime automatically handled by FastAPI
-        return [dict(row) for row in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
-
-@app.get("/api/tenders/{tender_id}")
-@app.get("/tenders/{tender_id}")
-async def get_tender_detail(tender_id: str, conn = Depends(get_db_conn)):
-    query = "SELECT * FROM public.tenders WHERE id = $1"
-    try:
-        row = await conn.fetchrow(query, tender_id)
-        if not row:
-            raise HTTPException(status_code=404, detail="Tender not found")
-        return dict(row)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(url, headers=headers, params=params)
+            if res.status_code != 200:
+                raise HTTPException(status_code=res.status_code, detail=f"Supabase REST error: {res.text}")
+            return res.json()
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database REST error: {str(e)}")
+
+@app.get("/api/tenders/{tender_id}")
+@app.get("/tenders/{tender_id}")
+async def get_tender_detail(tender_id: str):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(status_code=500, detail="Supabase environment variables are missing!")
+        
+    url = f"{SUPABASE_URL}/rest/v1/tenders"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
+    }
+    
+    params = {
+        "or": f"(id.eq.{tender_id},bid_notice_no.eq.{tender_id})",
+        "limit": 1
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(url, headers=headers, params=params)
+            if res.status_code != 200:
+                raise HTTPException(status_code=res.status_code, detail=f"Supabase REST error: {res.text}")
+            data = res.json()
+            if not data:
+                raise HTTPException(status_code=404, detail="Tender not found")
+            return data[0]
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Database REST error: {str(e)}")
 
 @app.put("/api/tenders/{tender_id}")
 @app.put("/tenders/{tender_id}")
-async def update_tender(
-    tender_id: str,
-    update_data: TenderUpdate,
-    conn = Depends(get_db_conn)
-):
-    # Check if tender exists
-    exist_check = await conn.fetchval("SELECT id FROM public.tenders WHERE id = $1", tender_id)
-    if not exist_check:
-        # Check if they passed UUID or bid_notice_no
-        exist_check = await conn.fetchval("SELECT id FROM public.tenders WHERE bid_notice_no = $1", tender_id)
-        if not exist_check:
-            raise HTTPException(status_code=404, detail="Tender not found")
-        tender_uuid = exist_check
-    else:
-        tender_uuid = exist_check
+async def update_tender(tender_id: str, update_data: TenderUpdate):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(status_code=500, detail="Supabase environment variables are missing!")
         
-    # Build dynamic update statement
-    fields = []
-    params = []
-    idx = 1
+    # First find the actual UUID of the tender
+    tender = await get_tender_detail(tender_id)
+    tender_uuid = tender["id"]
     
-    update_dict = update_data.model_dump(exclude_unset=True)
-    if not update_dict:
-        raise HTTPException(status_code=400, detail="No fields provided to update")
-        
-    for k, v in update_dict.items():
-        # Validate user_status values if specified
-        if k == "user_status" and v not in ['검토대기', '지원검토', '제출준비', '제출완료', '제외']:
-            raise HTTPException(status_code=400, detail=f"Invalid user_status: {v}")
-        fields.append(f"{k} = ${idx}")
-        params.append(v)
-        idx += 1
-        
-    params.append(tender_uuid)
-    query = f"UPDATE public.tenders SET {', '.join(fields)} WHERE id = ${idx} RETURNING *"
+    url = f"{SUPABASE_URL}/rest/v1/tenders"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
     
+    params = {
+        "id": f"eq.{tender_uuid}"
+    }
+    
+    payload = update_data.model_dump(exclude_unset=True)
+    # Convert datetimes to ISO strings
+    for k, v in payload.items():
+        if isinstance(v, datetime):
+            payload[k] = v.isoformat()
+            
     try:
-        updated_row = await conn.fetchrow(query, *params)
-        return dict(updated_row)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.patch(url, headers=headers, params=params, json=payload)
+            if res.status_code != 200:
+                raise HTTPException(status_code=res.status_code, detail=f"Supabase patch error: {res.text}")
+            data = res.json()
+            if not data:
+                raise HTTPException(status_code=404, detail="Tender not found after patch")
+            return data[0]
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Failed to update tender: {str(e)}")
 
 @app.post("/api/tenders/sync")
@@ -211,22 +174,64 @@ async def trigger_sync():
 
 @app.get("/api/stats")
 @app.get("/stats")
-async def get_stats(conn = Depends(get_db_conn)):
-    # Calculate key metrics for the MICE dashboard
-    query = """
-        SELECT 
-            COUNT(*) as total_count,
-            COALESCE(SUM(CASE WHEN user_status = '검토대기' THEN 1 ELSE 0 END), 0) as pending_count,
-            COALESCE(SUM(CASE WHEN user_status = '지원검토' THEN 1 ELSE 0 END), 0) as reviewing_count,
-            COALESCE(SUM(CASE WHEN user_status = '제출준비' THEN 1 ELSE 0 END), 0) as preparing_count,
-            COALESCE(SUM(CASE WHEN user_status = '제출완료' THEN 1 ELSE 0 END), 0) as submitted_count,
-            COALESCE(SUM(CASE WHEN user_status = '제외' THEN 1 ELSE 0 END), 0) as excluded_count,
-            COALESCE(SUM(CASE WHEN status = '입찰진행중' THEN budget ELSE 0 END), 0) as active_budget_sum
-        FROM public.tenders;
-    """
+async def get_stats():
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(status_code=500, detail="Supabase environment variables are missing!")
+        
+    url = f"{SUPABASE_URL}/rest/v1/tenders"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
+    }
+    
+    params = {
+        "select": "status,budget,user_status"
+    }
+    
     try:
-        row = await conn.fetchrow(query)
-        return dict(row)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(url, headers=headers, params=params)
+            if res.status_code != 200:
+                raise HTTPException(status_code=res.status_code, detail=f"Supabase stats error: {res.text}")
+                
+            data = res.json()
+            
+            total_count = len(data)
+            pending_count = 0
+            reviewing_count = 0
+            preparing_count = 0
+            submitted_count = 0
+            excluded_count = 0
+            active_budget_sum = 0
+            
+            for item in data:
+                u_status = item.get("user_status")
+                status = item.get("status")
+                budget = item.get("budget") or 0
+                
+                if u_status == "검토대기":
+                    pending_count += 1
+                elif u_status == "지원검토":
+                    reviewing_count += 1
+                elif u_status == "제출준비":
+                    preparing_count += 1
+                elif u_status == "제출완료":
+                    submitted_count += 1
+                elif u_status == "제외":
+                    excluded_count += 1
+                    
+                if status == "입찰진행중":
+                    active_budget_sum += budget
+                    
+            return {
+                "total_count": total_count,
+                "pending_count": pending_count,
+                "reviewing_count": reviewing_count,
+                "preparing_count": preparing_count,
+                "submitted_count": submitted_count,
+                "excluded_count": excluded_count,
+                "active_budget_sum": active_budget_sum
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve stats: {str(e)}")
 

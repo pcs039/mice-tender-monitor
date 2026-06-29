@@ -1,7 +1,6 @@
 import os
 import httpx
 import asyncio
-import asyncpg
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -10,73 +9,87 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(parent_dir, '.env')
 load_dotenv(dotenv_path=env_path)
 
-DB_URL = os.getenv("DATABASE_URL")
-if DB_URL and DB_URL.startswith("postgres://"):
-    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 OPEN_API_KEY = os.getenv("OPEN_API_KEY")
 
 # MICE Keywords to monitor
 KEYWORDS = ['국제회의', '세미나', '컨퍼런스', '콘퍼런스', '포럼', 'MICE', '운영대행', '전시']
 
-# Save tenders to Supabase
+# Save tenders to Supabase using HTTP REST API
 async def save_tenders_to_db(tenders):
-    if not DB_URL:
-        print("Database connection URL missing. Cannot save.")
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        print("Supabase credentials missing. Cannot save.")
         return 0
         
-    conn = await asyncpg.connect(DB_URL, statement_cache_size=0)
-    inserted_count = 0
+    url = f"{SUPABASE_URL}/rest/v1/tenders"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
+    }
     
+    # 1. Fetch existing manual entries (event dates, venue, notes, assignee, status) to preserve them
+    existing_map = {}
     try:
-        for t in tenders:
-            # We use ON CONFLICT to upsert, keeping manual event info updates intact
-            query = """
-                INSERT INTO public.tenders (
-                    bid_notice_no, bid_notice_ord, title, org_name, const_org_name,
-                    bid_start_date, bid_end_date, budget, link, category, status,
-                    event_start_date, event_end_date, event_location, memo
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-                ON CONFLICT (bid_notice_no) DO UPDATE SET
-                    bid_notice_ord = EXCLUDED.bid_notice_ord,
-                    title = EXCLUDED.title,
-                    org_name = EXCLUDED.org_name,
-                    const_org_name = EXCLUDED.const_org_name,
-                    bid_start_date = EXCLUDED.bid_start_date,
-                    bid_end_date = EXCLUDED.bid_end_date,
-                    budget = EXCLUDED.budget,
-                    link = EXCLUDED.link,
-                    category = EXCLUDED.category,
-                    status = EXCLUDED.status,
-                    event_start_date = COALESCE(tenders.event_start_date, EXCLUDED.event_start_date),
-                    event_end_date = COALESCE(tenders.event_end_date, EXCLUDED.event_end_date),
-                    event_location = COALESCE(tenders.event_location, EXCLUDED.event_location),
-                    memo = COALESCE(tenders.memo, EXCLUDED.memo)
-                RETURNING id;
-            """
-            await conn.execute(
-                query,
-                t["bid_notice_no"],
-                t["bid_notice_ord"],
-                t["title"],
-                t.get("org_name"),
-                t.get("const_org_name"),
-                t.get("bid_start_date"),
-                t.get("bid_end_date"),
-                t.get("budget"),
-                t.get("link"),
-                t.get("category"),
-                t.get("status", "입찰진행중"),
-                t.get("event_start_date"),
-                t.get("event_end_date"),
-                t.get("event_location"),
-                t.get("memo")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(
+                url, 
+                headers=headers, 
+                params={"select": "bid_notice_no,event_start_date,event_end_date,event_location,memo,user_status,assignee"}
             )
-            inserted_count += 1
-        print(f"Successfully upserted {inserted_count} tenders to database.")
+            if res.status_code == 200:
+                for item in res.json():
+                    no = item.get("bid_notice_no")
+                    if no:
+                        existing_map[no] = item
     except Exception as e:
-        print(f"Error saving to DB: {e}")
-    finally:
-        await conn.close()
+        print(f"Warning: Could not fetch existing tenders to merge manual entries: {e}")
+        
+    # 2. Merge OpenAPI tenders with existing manual entries
+    payload = []
+    for t in tenders:
+        no = t["bid_notice_no"]
+        existing = existing_map.get(no, {})
+        
+        # Preserve manual entries (COALESCE logic in Python)
+        t["event_start_date"] = existing.get("event_start_date") or t.get("event_start_date")
+        t["event_end_date"] = existing.get("event_end_date") or t.get("event_end_date")
+        t["event_location"] = existing.get("event_location") or t.get("event_location")
+        t["memo"] = existing.get("memo") or t.get("memo")
+        t["user_status"] = existing.get("user_status") or t.get("user_status") or "검토대기"
+        t["assignee"] = existing.get("assignee") or t.get("assignee")
+        
+        # Convert any datetime objects to ISO strings
+        for k in ["bid_start_date", "bid_end_date", "event_start_date", "event_end_date"]:
+            if isinstance(t.get(k), datetime):
+                t[k] = t[k].isoformat()
+                
+        payload.append(t)
+        
+    # 3. PostgREST Bulk UPSERT using resolution=merge-duplicates
+    upsert_headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+    }
+    
+    # We specify on_conflict parameter to tell PostgREST which column is the unique key
+    params = {
+        "on_conflict": "bid_notice_no"
+    }
+    
+    inserted_count = 0
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(url, headers=upsert_headers, params=params, json=payload)
+            if res.status_code in [200, 201]:
+                inserted_count = len(payload)
+                print(f"Successfully upserted {inserted_count} tenders to Supabase via REST API.")
+            else:
+                print(f"Error upserting to Supabase: {res.status_code} - {res.text}")
+    except Exception as e:
+        print(f"Exception during Supabase REST upsert: {e}")
         
     return inserted_count
 
@@ -137,7 +150,7 @@ async def fetch_from_api(keyword: str):
                 print(f"No results for keyword '{keyword}'")
                 return []
                 
-            # Defensive check for list structure (in this version items is directly a list of items)
+            # Defensive check for list structure
             if isinstance(items, dict) and "item" in items:
                 item_list = items["item"]
             else:
