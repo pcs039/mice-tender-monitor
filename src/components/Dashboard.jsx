@@ -401,26 +401,6 @@ export default function Dashboard() {
               )}
             </div>
             
-            {/* User Status Filter Select */}
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-slate-400 whitespace-nowrap">내부상태:</span>
-              <div className="flex bg-[#080B13] border border-[#242F4D]/50 p-1 rounded-lg">
-                {["전체", "검토대기", "지원검토", "제출준비", "제출완료", "제외"].map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setSelectedUserStatus(status)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      selectedUserStatus === status
-                        ? "bg-[#1A253D] text-brand-cyan shadow-sm border border-[#242F4D]"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Sorting Buttons */}
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-slate-400 whitespace-nowrap">정렬:</span>
