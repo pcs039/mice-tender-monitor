@@ -13,24 +13,6 @@ export default function Navbar({ currentView, setView }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToSection = (id) => {
-    if (currentView !== "landing") {
-      setView("landing");
-      setTimeout(() => {
-        const element = document.getElementById(id);
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth" });
-        }
-      }, 150);
-    } else {
-      const element = document.getElementById(id);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
-      }
-    }
-    setMobileMenuOpen(false);
-  };
-
   const handleCTAClick = () => {
     if (currentView === "dashboard") {
       setView("landing");
@@ -77,25 +59,6 @@ export default function Navbar({ currentView, setView }) {
           </div>
         </div>
 
-        {/* Desktop Links */}
-        <div className="hidden md:flex items-center space-x-8">
-          {[
-            { id: "problem", label: "기존의 한계" },
-            { id: "pipeline", label: "핵심 기술" },
-            { id: "preview", label: "콘솔 미리보기" },
-            { id: "positioning", label: "연동 및 가치" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => scrollToSection(item.id)}
-              className="text-sm font-medium text-gray-400 hover:text-brand-cyan hover:cyan-neon-glow transition-all duration-200 cursor-pointer relative py-1 group"
-            >
-              {item.label}
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-brand-cyan group-hover:w-full transition-all duration-300" />
-            </button>
-          ))}
-        </div>
-
         {/* CTA Button */}
         <div className="hidden md:block">
           <button
@@ -103,7 +66,7 @@ export default function Navbar({ currentView, setView }) {
             className="relative inline-flex items-center justify-center p-0.5 mb-2 me-2 overflow-hidden text-xs font-bold text-white rounded-lg group bg-gradient-to-br from-brand-cyan to-brand-purple group-hover:from-brand-cyan group-hover:to-brand-purple hover:text-white focus:ring-2 focus:outline-none focus:ring-brand-cyan/50 cursor-pointer"
           >
             <span className="relative px-4 py-2 transition-all ease-in duration-75 bg-[#0D0E12] rounded-md group-hover:bg-opacity-0 flex items-center space-x-1">
-              <span>{currentView === "dashboard" ? "소개 홈페이지" : "사내 입찰 현황판"}</span>
+              <span>{currentView === "dashboard" ? "회사 홈페이지" : "사내 입찰 현황판"}</span>
               <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </span>
           </button>
@@ -127,25 +90,11 @@ export default function Navbar({ currentView, setView }) {
         }`}
       >
         <div className="flex flex-col pt-24 px-6 space-y-6">
-          {[
-            { id: "problem", label: "기존의 한계" },
-            { id: "pipeline", label: "핵심 기술" },
-            { id: "preview", label: "콘솔 미리보기" },
-            { id: "positioning", label: "연동 및 가치" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => scrollToSection(item.id)}
-              className="text-left text-base font-semibold text-gray-300 hover:text-brand-cyan py-2 border-b border-white/5"
-            >
-              {item.label}
-            </button>
-          ))}
           <button
             onClick={handleCTAClick}
             className="w-full mt-4 py-2.5 bg-gradient-to-r from-brand-cyan to-brand-purple text-white text-sm font-bold rounded-lg hover:shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-shadow"
           >
-            {currentView === "dashboard" ? "소개 홈페이지" : "사내 입찰 현황판"}
+            {currentView === "dashboard" ? "회사 홈페이지" : "사내 입찰 현황판"}
           </button>
         </div>
       </div>
