@@ -11,6 +11,8 @@ env_path = os.path.join(parent_dir, '.env')
 load_dotenv(dotenv_path=env_path)
 
 DB_URL = os.getenv("DATABASE_URL")
+if DB_URL and DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
 OPEN_API_KEY = os.getenv("OPEN_API_KEY")
 
 # MICE Keywords to monitor

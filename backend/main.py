@@ -51,26 +51,29 @@ async def shutdown():
         print("Database pool closed.")
 
 import asyncio
-db_pool_lock = asyncio.Lock()
 
 # Dependency to get connection from pool
 async def get_db_conn(request: Request):
-    if not hasattr(request.app.state, "pool") or request.app.state.pool is None:
-        async with db_pool_lock:
-            if not hasattr(request.app.state, "pool") or request.app.state.pool is None:
-                db_url = os.getenv("DATABASE_URL")
-                if not db_url:
-                    raise ValueError("DATABASE_URL environment variable is missing!")
-                print("Lazily creating database connection pool for Vercel Serverless Function...")
-                request.app.state.pool = await asyncpg.create_pool(
-                    db_url,
-                    min_size=0,
-                    max_size=5,
-                    max_inactive_connection_lifetime=300.0,
-                    statement_cache_size=0
-                )
-    async with request.app.state.pool.acquire() as conn:
+    # Try to use request.app.state.pool if it is already initialized (for local dev)
+    if hasattr(request.app, "state") and hasattr(request.app.state, "pool") and request.app.state.pool is not None:
+        async with request.app.state.pool.acquire() as conn:
+            yield conn
+            return
+
+    # Fallback to direct single connection for Vercel Serverless environment
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError("DATABASE_URL environment variable is missing!")
+    
+    # Normalize postgres:// to postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+        
+    conn = await asyncpg.connect(db_url, statement_cache_size=0)
+    try:
         yield conn
+    finally:
+        await conn.close()
 
 
 # Pydantic models for request bodies
@@ -84,6 +87,7 @@ class TenderUpdate(BaseModel):
 
 # Endpoints
 @app.get("/api/tenders")
+@app.get("/tenders")
 async def get_tenders(
     conn = Depends(get_db_conn),
     sort: str = Query("latest", description="Sort order: 'latest', 'budget', 'deadline'"),
@@ -137,6 +141,7 @@ async def get_tenders(
         raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
 
 @app.get("/api/tenders/{tender_id}")
+@app.get("/tenders/{tender_id}")
 async def get_tender_detail(tender_id: str, conn = Depends(get_db_conn)):
     query = "SELECT * FROM public.tenders WHERE id = $1"
     try:
@@ -150,6 +155,7 @@ async def get_tender_detail(tender_id: str, conn = Depends(get_db_conn)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.put("/api/tenders/{tender_id}")
+@app.put("/tenders/{tender_id}")
 async def update_tender(
     tender_id: str,
     update_data: TenderUpdate,
@@ -193,6 +199,7 @@ async def update_tender(
         raise HTTPException(status_code=500, detail=f"Failed to update tender: {str(e)}")
 
 @app.post("/api/tenders/sync")
+@app.post("/tenders/sync")
 async def trigger_sync():
     # Import inside endpoint to avoid circular imports and run on demand
     from backend.collector import sync_data
@@ -203,6 +210,7 @@ async def trigger_sync():
         raise HTTPException(status_code=500, detail=f"Sync execution failed: {str(e)}")
 
 @app.get("/api/stats")
+@app.get("/stats")
 async def get_stats(conn = Depends(get_db_conn)):
     # Calculate key metrics for the MICE dashboard
     query = """
