@@ -20,12 +20,27 @@ export default function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [selectedTender, setSelectedTender] = useState(null);
   const [toast, setToast] = useState(null);
-  const drawerFormRef = useRef(null);
+  const drawerContainerRef = useRef(null);
 
   // Scroll side drawer to top when selected tender changes (opens)
   useEffect(() => {
-    if (selectedTender && drawerFormRef.current) {
-      drawerFormRef.current.scrollTo({ top: 0, behavior: "instant" });
+    const resetScroll = () => {
+      if (drawerContainerRef.current) {
+        drawerContainerRef.current.scrollTop = 0;
+        drawerContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
+      }
+    };
+
+    if (selectedTender) {
+      resetScroll();
+      const t1 = setTimeout(resetScroll, 50);
+      const t2 = setTimeout(resetScroll, 150);
+      const t3 = setTimeout(resetScroll, 300);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
     }
   }, [selectedTender]);
   
@@ -705,7 +720,7 @@ export default function Dashboard() {
               {/* Drawer Absolute Top Scroll Container */}
               <form 
                 onSubmit={handleSave} 
-                ref={drawerFormRef} 
+                ref={drawerContainerRef} 
                 className="force-drawer-scroll p-6 space-y-6 flex flex-col"
               >
                 {/* Drawer Header (Scrollable) */}
