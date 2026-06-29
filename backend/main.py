@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Load env variables from root
@@ -205,10 +205,24 @@ async def get_stats():
             active_count = 0
             active_budget_sum = 0
             
+            now = datetime.now(timezone.utc)
+            
             for item in data:
                 u_status = item.get("user_status")
                 status = item.get("status")
                 budget = item.get("budget") or 0
+                bid_end_date_str = item.get("bid_end_date")
+                
+                # Check if it has a deadline and if it has passed (expired)
+                is_expired = False
+                if bid_end_date_str:
+                    try:
+                        clean_str = bid_end_date_str.replace("Z", "+00:00")
+                        bid_end_date = datetime.fromisoformat(clean_str)
+                        if bid_end_date < now:
+                            is_expired = True
+                    except Exception as e:
+                        print(f"Error parsing date {bid_end_date_str}: {e}")
                 
                 if u_status == "검토대기":
                     pending_count += 1
@@ -221,7 +235,8 @@ async def get_stats():
                 elif u_status == "제외":
                     excluded_count += 1
                     
-                if status == "입찰진행중":
+                # Active budget sum and active count should only include ongoing/non-expired tenders!
+                if status == "입찰진행중" and not is_expired:
                     active_count += 1
                     active_budget_sum += budget
                     

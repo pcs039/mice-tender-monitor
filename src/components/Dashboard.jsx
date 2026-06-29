@@ -198,7 +198,7 @@ export default function Dashboard() {
   // Category tags
   const categories = ["전체", "국제회의", "세미나", "컨퍼런스", "포럼", "MICE", "운영대행", "회의"];
 
-  // Get locally filtered tenders list
+  // Get locally filtered and sorted tenders list
   const getFilteredTenders = () => {
     let list = [...tenders];
     
@@ -215,7 +215,49 @@ export default function Dashboard() {
       list = list.filter(t => t.budget >= 300000000);
     }
     
-    return list;
+    // PCO-optimized custom sorting:
+    // 1. Separate active (non-expired) and closed (expired/canceled) tenders
+    const now = new Date();
+    const activeList = [];
+    const closedList = [];
+    
+    list.forEach(t => {
+      const isExpired = t.status === "마감" || t.status === "취소" || (t.bid_end_date && new Date(t.bid_end_date) < now);
+      if (isExpired) {
+        closedList.push(t);
+      } else {
+        activeList.push(t);
+      }
+    });
+    
+    // 2. Sort Active Group based on selected criteria
+    if (sortBy === "budget") {
+      activeList.sort((a, b) => (b.budget || 0) - (a.budget || 0));
+      closedList.sort((a, b) => (b.budget || 0) - (a.budget || 0));
+    } else if (sortBy === "latest") {
+      // Default: Active tenders prioritized by closer deadline first, Closed sorted by newest registration
+      activeList.sort((a, b) => {
+        if (!a.bid_end_date) return 1;
+        if (!b.bid_end_date) return -1;
+        return new Date(a.bid_end_date) - new Date(b.bid_end_date);
+      });
+      closedList.sort((a, b) => {
+        return new Date(b.bid_start_date) - new Date(a.bid_start_date);
+      });
+    } else { // deadline
+      activeList.sort((a, b) => {
+        if (!a.bid_end_date) return 1;
+        if (!b.bid_end_date) return -1;
+        return new Date(a.bid_end_date) - new Date(b.bid_end_date);
+      });
+      closedList.sort((a, b) => {
+        if (!a.bid_end_date) return 1;
+        if (!b.bid_end_date) return -1;
+        return new Date(b.bid_end_date) - new Date(a.bid_end_date); // recently closed first
+      });
+    }
+    
+    return [...activeList, ...closedList];
   };
 
   // Internal user status classes
