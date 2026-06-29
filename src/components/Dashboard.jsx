@@ -660,36 +660,56 @@ export default function Dashboard() {
               animate={{ translateX: 0 }}
               exit={{ translateX: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed inset-y-0 right-0 w-full md:max-w-xl bg-[#0E1321] border-l border-[#242F4D] shadow-2xl z-50 flex flex-col pointer-events-auto"
+              className="fixed inset-y-0 right-0 w-full md:max-w-xl bg-[#0E1321] border-l border-[#242F4D] shadow-2xl z-50 flex flex-col pointer-events-auto force-drawer-root"
             >
+              {/* CSS Priority Overrides for Drawer Structure */}
+              <style>{`
+                .force-drawer-root {
+                  padding-top: 48px !important;
+                  box-sizing: border-box !important;
+                  overflow: visible !important;
+                }
+                .force-drawer-scroll {
+                  flex: 1 1 0% !important;
+                  height: auto !important;
+                  overflow-y: auto !important;
+                  overflow-x: visible !important;
+                  padding-bottom: 24px !important;
+                }
+                .force-drawer-header {
+                  overflow: visible !important;
+                  display: flex !important;
+                  flex-direction: row !important;
+                  align-items: center !important;
+                  justify-content: space-between !important;
+                  padding-bottom: 20px !important;
+                  border-bottom: 1px solid rgba(36, 47, 77, 0.5) !important;
+                }
+                .force-wrap-title {
+                  white-space: normal !important;
+                  overflow: visible !important;
+                  text-overflow: clip !important;
+                  word-break: break-all !important;
+                  word-wrap: break-word !important;
+                  display: block !important;
+                  height: auto !important;
+                  max-height: none !important;
+                }
+                .force-auto-height-card {
+                  height: auto !important;
+                  max-height: none !important;
+                  padding: 16px !important;
+                }
+              `}</style>
+
               {/* Drawer Absolute Top Scroll Container */}
               <form 
                 onSubmit={handleSave} 
                 ref={drawerFormRef} 
-                className="h-full overflow-y-auto p-6 space-y-6 flex flex-col"
-                style={{ boxSizing: "border-box", paddingTop: "32px" }}
+                className="force-drawer-scroll p-6 space-y-6 flex flex-col"
               >
-                {/* CSS Priority Overrides for Title Wrap & Card Height */}
-                <style>{`
-                  .force-wrap-title {
-                    white-space: normal !important;
-                    overflow: visible !important;
-                    text-overflow: clip !important;
-                    word-break: break-all !important;
-                    word-wrap: break-word !important;
-                    display: block !important;
-                    height: auto !important;
-                    max-height: none !important;
-                  }
-                  .force-auto-height-card {
-                    height: auto !important;
-                    max-height: none !important;
-                    padding: 16px !important;
-                  }
-                `}</style>
-
                 {/* Drawer Header (Scrollable) */}
-                <div className="flex items-center justify-between pb-5 border-b border-[#242F4D]/50">
+                <div className="force-drawer-header">
                   <div>
                     <span className="bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
                       공고 상세 & 입찰 기획
