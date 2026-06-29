@@ -11,11 +11,7 @@ export default function Dashboard() {
   const [tenders, setTenders] = useState([]);
   const [stats, setStats] = useState({
     total_count: 0,
-    pending_count: 0,
-    reviewing_count: 0,
-    preparing_count: 0,
-    submitted_count: 0,
-    excluded_count: 0,
+    active_count: 0,
     active_budget_sum: 0
   });
   
@@ -29,6 +25,7 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [selectedUserStatus, setSelectedUserStatus] = useState("전체");
+  const [selectedBudgetRange, setSelectedBudgetRange] = useState("전체");
   const [sortBy, setSortBy] = useState("latest"); // 'latest', 'budget', 'deadline'
   
   // Edit Form state (for selected tender)
@@ -199,7 +196,27 @@ export default function Dashboard() {
   };
 
   // Category tags
-  const categories = ["전체", "국제회의", "세미나", "컨퍼런스", "포럼", "MICE", "운영대행", "전시"];
+  const categories = ["전체", "국제회의", "세미나", "컨퍼런스", "포럼", "MICE", "운영대행", "회의"];
+
+  // Get locally filtered tenders list
+  const getFilteredTenders = () => {
+    let list = [...tenders];
+    
+    // Strict client-side filter: exclude '전시' (just in case)
+    list = list.filter(t => !t.category.includes("전시"));
+    
+    if (selectedBudgetRange === "range_50m_100m") {
+      list = list.filter(t => t.budget >= 50000000 && t.budget < 100000000);
+    } else if (selectedBudgetRange === "range_100m_200m") {
+      list = list.filter(t => t.budget >= 100000000 && t.budget < 200000000);
+    } else if (selectedBudgetRange === "range_200m_300m") {
+      list = list.filter(t => t.budget >= 200000000 && t.budget < 300000000);
+    } else if (selectedBudgetRange === "range_300m_plus") {
+      list = list.filter(t => t.budget >= 300000000);
+    }
+    
+    return list;
+  };
 
   // Internal user status classes
   const getStatusBadge = (status) => {
@@ -266,7 +283,7 @@ export default function Dashboard() {
 
 
         {/* 1. Statistics Cards Widget Banner */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
           {/* Card 1: Total */}
           <div className="bg-[#121826]/75 border border-[#242F4D]/50 rounded-xl p-5 relative overflow-hidden backdrop-blur-md">
@@ -278,68 +295,40 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center space-x-1 text-slate-500 text-[10px] mt-4 font-mono">
               <ClipboardList className="w-3 h-3 text-slate-400" />
-              <span>실시간 수집 건수</span>
+              <span>실시간 누적 수집 건수</span>
             </div>
           </div>
 
-          {/* Card 2: Reviewing */}
+          {/* Card 2: Active / 공고 중인 건 */}
           <div className="bg-[#121826]/75 border border-[#242F4D]/50 rounded-xl p-5 relative overflow-hidden backdrop-blur-md">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-cyan/5 rounded-full blur-xl -z-10" />
-            <p className="text-[#38BDF8] text-xs font-bold tracking-wider">검토 중인 공고</p>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 rounded-full blur-xl -z-10" />
+            <p className="text-[#38BDF8] text-xs font-bold tracking-wider">공고 중인 건</p>
             <div className="flex items-baseline space-x-2 mt-2">
-              <span className="text-3xl font-extrabold text-white">{stats.reviewing_count}</span>
+              <span className="text-3xl font-extrabold text-[#38BDF8]">{stats.active_count || 0}</span>
               <span className="text-xs text-[#38BDF8]">건</span>
             </div>
             <div className="flex items-center space-x-1 text-slate-500 text-[10px] mt-4 font-mono">
               <Clock className="w-3 h-3 text-[#38BDF8]" />
-              <span>지원 타당성 분석 진행</span>
+              <span>현재 입찰 진행 중인 회의 행사</span>
             </div>
           </div>
 
-          {/* Card 3: Preparing */}
+          {/* Card 3: Active Budget Pool */}
           <div className="bg-[#121826]/75 border border-[#242F4D]/50 rounded-xl p-5 relative overflow-hidden backdrop-blur-md">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-purple/5 rounded-full blur-xl -z-10" />
-            <p className="text-[#C084FC] text-xs font-bold tracking-wider">제안서 작성 중</p>
-            <div className="flex items-baseline space-x-2 mt-2">
-              <span className="text-3xl font-extrabold text-white">{stats.preparing_count}</span>
-              <span className="text-xs text-[#C084FC]">건</span>
-            </div>
-            <div className="flex items-center space-x-1 text-slate-500 text-[10px] mt-4 font-mono">
-              <Edit3 className="w-3 h-3 text-[#C084FC]" />
-              <span>RFP 제안 실무 작업</span>
-            </div>
-          </div>
-
-          {/* Card 4: Submitted */}
-          <div className="bg-[#121826]/75 border border-[#242F4D]/50 rounded-xl p-5 relative overflow-hidden backdrop-blur-md">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl -z-10" />
-            <p className="text-[#34D399] text-xs font-bold tracking-wider">투찰 완료</p>
-            <div className="flex items-baseline space-x-2 mt-2">
-              <span className="text-3xl font-extrabold text-white">{stats.submitted_count}</span>
-              <span className="text-xs text-[#34D399]">건</span>
-            </div>
-            <div className="flex items-center space-x-1 text-slate-500 text-[10px] mt-4 font-mono">
-              <CheckCircle className="w-3 h-3 text-[#34D399]" />
-              <span>제출 완료 및 심사 대기</span>
-            </div>
-          </div>
-
-          {/* Card 5: Budget */}
-          <div className="col-span-2 lg:col-span-1 bg-[#121826]/75 border border-[#242F4D]/50 rounded-xl p-5 relative overflow-hidden backdrop-blur-md">
             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl -z-10" />
             <p className="text-amber-400 text-xs font-bold tracking-wider">활성 입찰 예산 pool</p>
             <div className="flex items-baseline space-x-1 mt-2">
-              <span className="text-2xl font-extrabold text-white">
-                {Math.round(stats.active_budget_sum / 100000000)}
+              <span className="text-3xl font-extrabold text-white">
+                {Math.round((stats.active_budget_sum || 0) / 100000000)}
               </span>
               <span className="text-sm font-bold text-white">억</span>
               <span className="text-[10px] text-slate-400 ml-1">
-                ({(stats.active_budget_sum / 10000).toLocaleString()}만원)
+                ({((stats.active_budget_sum || 0) / 10000).toLocaleString()}만원)
               </span>
             </div>
             <div className="flex items-center space-x-1 text-slate-500 text-[10px] mt-4 font-mono">
               <TrendingUp className="w-3 h-3 text-amber-400" />
-              <span>공고 진행중 예산 합계</span>
+              <span>진행 중인 용역 예산 합계</span>
             </div>
           </div>
 
@@ -436,6 +425,33 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
+
+          {/* Budget Range Filter Line */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#242F4D]/20">
+            <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mr-2 font-sans">
+              <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+              <span>회의 행사 예산규모별 필터:</span>
+            </span>
+            {[
+              { value: "전체", label: "전체 예산" },
+              { value: "range_50m_100m", label: "5,000만 원 이상 ~ 1억 원 미만" },
+              { value: "range_100m_200m", label: "1억 원 이상 ~ 2억 원 미만" },
+              { value: "range_200m_300m", label: "2억 원 이상 ~ 3억 원 미만" },
+              { value: "range_300m_plus", label: "3억 원 이상" }
+            ].map((range) => (
+              <button
+                key={range.value}
+                onClick={() => setSelectedBudgetRange(range.value)}
+                className={`px-3 py-1 rounded-full text-xs transition-all duration-200 cursor-pointer border ${
+                  selectedBudgetRange === range.value
+                    ? "bg-[#1A253D] text-brand-cyan border-brand-cyan/30"
+                    : "bg-[#080B13]/60 text-slate-400 border-[#242F4D]/40 hover:text-slate-200 hover:border-[#242F4D]"
+                }`}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 3. Main Data Board Table */}
@@ -464,7 +480,7 @@ export default function Dashboard() {
                       </div>
                     </td>
                   </tr>
-                ) : tenders.length === 0 ? (
+                ) : getFilteredTenders().length === 0 ? (
                   <tr>
                     <td colSpan="8" className="text-center py-24 text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-2">
@@ -475,7 +491,7 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 ) : (
-                  tenders.map((tender) => {
+                  getFilteredTenders().map((tender) => {
                     const dday = getDDay(tender.bid_end_date);
                     return (
                       <tr
@@ -573,7 +589,7 @@ export default function Dashboard() {
           {/* Table Footer */}
           <div className="bg-[#0B0F1A]/80 border-t border-[#242F4D]/50 px-6 py-4 flex items-center justify-between text-slate-400 text-xs">
             <div>
-              보여지는 입찰 공고: <span className="font-bold text-white">{tenders.length}</span>개
+              보여지는 입찰 공고: <span className="font-bold text-white">{getFilteredTenders().length}</span>개
             </div>
             <div>
               마지막 업데이트: <span className="font-mono text-white">{new Date().toLocaleTimeString()}</span>

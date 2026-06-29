@@ -202,6 +202,7 @@ async def get_stats():
             preparing_count = 0
             submitted_count = 0
             excluded_count = 0
+            active_count = 0
             active_budget_sum = 0
             
             for item in data:
@@ -221,6 +222,7 @@ async def get_stats():
                     excluded_count += 1
                     
                 if status == "입찰진행중":
+                    active_count += 1
                     active_budget_sum += budget
                     
             return {
@@ -230,6 +232,7 @@ async def get_stats():
                 "preparing_count": preparing_count,
                 "submitted_count": submitted_count,
                 "excluded_count": excluded_count,
+                "active_count": active_count,
                 "active_budget_sum": active_budget_sum
             }
     except Exception as e:
