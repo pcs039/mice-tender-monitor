@@ -13,8 +13,8 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 OPEN_API_KEY = os.getenv("OPEN_API_KEY")
 
-# MICE Keywords to monitor
-KEYWORDS = ['국제회의', '세미나', '컨퍼런스', '콘퍼런스', '포럼', 'MICE', '운영대행', '전시']
+# MICE Keywords to monitor (as specified by user)
+KEYWORDS = ['국제회의', '세미나', '컨퍼런스', '콘퍼런스', '포럼', 'MICE', '마이스', '운영대행', '전시', '회의']
 
 # Save tenders to Supabase using HTTP REST API
 async def save_tenders_to_db(tenders):
@@ -74,7 +74,6 @@ async def save_tenders_to_db(tenders):
         "Prefer": "resolution=merge-duplicates"
     }
     
-    # We specify on_conflict parameter to tell PostgREST which column is the unique key
     params = {
         "on_conflict": "bid_notice_no"
     }
@@ -107,47 +106,41 @@ def parse_api_date(date_str):
         except ValueError:
             return None
 
-# Fetch from 나라장터 OpenAPI
-async def fetch_from_api(keyword: str):
-    # Verified endpoint URL for 나라장터 용역 입찰공고 서비스
+# Fetch from 나라장터 OpenAPI and filter locally
+async def fetch_and_filter_tenders():
     url = "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"
     
-    # Query for the last 7 days of announcements
     today = datetime.now()
-    start_date = today - timedelta(days=7)
+    start_date = today - timedelta(days=20) # Search last 20 days
     
     params = {
         "serviceKey": OPEN_API_KEY,
-        "numOfRows": 50,
+        "numOfRows": 900,  # Fetch in bulk
         "pageNo": 1,
-        "inqryDiv": 1, # 공고등록일 기준
+        "inqryDiv": 1,     # By registration date
         "inqryBgnDt": start_date.strftime("%Y%m%d0000"),
         "inqryEndDt": today.strftime("%Y%m%d2359"),
-        "bidNtceNm": keyword,
         "type": "json"
     }
     
-    print(f"Calling OpenAPI for keyword: '{keyword}'...")
+    print("Calling Nara Jangter OpenAPI in bulk...")
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, params=params)
             if response.status_code != 200:
-                print(f"API HTTP Error {response.status_code} for keyword {keyword}")
-                return None
+                print(f"API HTTP Error {response.status_code}")
+                return []
                 
             data = response.json()
-            # Check for API error response structure
             if "response" not in data or "body" not in data["response"]:
                 header = data.get("response", {}).get("header", {})
-                result_code = header.get("resultCode", "UNKNOWN")
-                result_msg = header.get("resultMsg", "Unknown error")
-                print(f"API business error: {result_code} - {result_msg}")
-                return None
+                print(f"API business error: {header.get('resultCode')} - {header.get('resultMsg')}")
+                return []
                 
             body = data["response"]["body"]
             items = body.get("items", [])
             if not items or isinstance(items, str):
-                print(f"No results for keyword '{keyword}'")
+                print("No items returned from API.")
                 return []
                 
             # Defensive check for list structure
@@ -159,30 +152,48 @@ async def fetch_from_api(keyword: str):
             if isinstance(item_list, dict):
                 item_list = [item_list]
                 
-            parsed_tenders = []
+            unique_tenders = {}
             for item in item_list:
                 title = item.get("bidNtceNm", "")
+                notice_no = item.get("bidNtceNo")
+                if not title or not notice_no:
+                    continue
+                    
+                # Match title against our MICE keywords (case-insensitive)
+                matched_kws = []
+                for kw in KEYWORDS:
+                    if kw.lower() in title.lower() or (kw == "MICE" and "마이스" in title):
+                        matched_kws.append(kw)
+                        
+                if not matched_kws:
+                    continue  # Skip if title doesn't match any keyword
+                    
+                # Check for duplicate in the current batch payload
+                if notice_no in unique_tenders:
+                    existing = unique_tenders[notice_no]
+                    # Combine categories
+                    combined_kws = set(existing["category"].split(",") + matched_kws)
+                    existing["category"] = ",".join(combined_kws)
+                    continue
                 
-                # Check for cancellation notices
+                # Check status
                 status = "입찰진행중"
                 ntce_div = item.get("ntceKindNm", "")
-                if "취소" in ntce_div or "취소" in item.get("bidNtceNm", ""):
+                if "취소" in ntce_div or "취소" in title:
                     status = "취소"
                 elif parse_api_date(item.get("bidClseDt")) and datetime.now() > parse_api_date(item.get("bidClseDt")):
                     status = "마감"
-                
-                # Use asignBdgtAmt (assigned budget) as primary, falling back to bdgtAmt/presmptPrce
+                    
                 budget_str = item.get("asignBdgtAmt") or item.get("bdgtAmt") or item.get("presmptPrce") or "0"
                 try:
                     budget = int(float(budget_str))
                 except ValueError:
                     budget = 0
-                
-                # Use bidNtceDtlUrl or fallback to bidNtceUrl
+                    
                 link = item.get("bidNtceDtlUrl") or item.get("bidNtceUrl")
                 
-                parsed_tenders.append({
-                    "bid_notice_no": item.get("bidNtceNo"),
+                unique_tenders[notice_no] = {
+                    "bid_notice_no": notice_no,
                     "bid_notice_ord": item.get("bidNtceOrd", "000"),
                     "title": title,
                     "org_name": item.get("dminsttNm") or item.get("ntceInsttNm"),
@@ -191,20 +202,21 @@ async def fetch_from_api(keyword: str):
                     "bid_end_date": parse_api_date(item.get("bidClseDt")),
                     "budget": budget,
                     "link": link,
-                    "category": keyword,
+                    "category": ",".join(matched_kws),
                     "status": status,
                     "event_start_date": None,
                     "event_end_date": None,
                     "event_location": None,
                     "memo": None
-                })
-            
-            print(f"Fetched {len(parsed_tenders)} tenders for keyword '{keyword}'")
+                }
+                
+            parsed_tenders = list(unique_tenders.values())
+            print(f"Successfully matched and parsed {len(parsed_tenders)} unique MICE tenders.")
             return parsed_tenders
             
     except Exception as e:
-        print(f"Exception during API fetch for keyword {keyword}: {e}")
-        return None
+        print(f"Exception during bulk API fetch: {e}")
+        return []
 
 # Main sync process
 async def sync_data():
@@ -213,27 +225,12 @@ async def sync_data():
     if not OPEN_API_KEY:
         raise ValueError("OPEN_API_KEY environment variable is missing!")
         
-    all_tenders = []
-    
-    for kw in KEYWORDS:
-        tenders = await fetch_from_api(kw)
-        if tenders is not None:
-            all_tenders.extend(tenders)
-        else:
-            print(f"API fetch failed for keyword: {kw}")
-            
-    # Remove duplicates from different keywords
-    unique_tenders = {}
-    for t in all_tenders:
-        notice_id = t["bid_notice_no"]
-        if notice_id not in unique_tenders:
-            unique_tenders[notice_id] = t
-        else:
-            existing = unique_tenders[notice_id]
-            if t["category"] not in existing["category"]:
-                existing["category"] = f"{existing['category']},{t['category']}"
-                
-    inserted = await save_tenders_to_db(list(unique_tenders.values()))
+    tenders = await fetch_and_filter_tenders()
+    if not tenders:
+        print("No MICE tenders fetched.")
+        return {"status": "success", "mode": "api", "count": 0}
+        
+    inserted = await save_tenders_to_db(tenders)
     return {"status": "success", "mode": "api", "count": inserted}
 
 if __name__ == "__main__":
