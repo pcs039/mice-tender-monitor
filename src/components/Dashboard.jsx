@@ -6,143 +6,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Fallback MICE Tenders when API is unavailable
-const now = new Date();
-let FALLBACK_TENDERS = [
-  {
-    id: "mock-1",
-    bid_notice_no: "20260601001",
-    bid_notice_ord: "00",
-    title: "2026년 한-아세안 특별 정상회의 공식 대행용역",
-    org_name: "외교부",
-    const_org_name: "외교부",
-    bid_start_date: new Date(now.getTime() - 86400000).toISOString(),
-    bid_end_date: new Date(now.getTime() + 345600000).toISOString(), // D-4
-    budget: 450000000,
-    link: "https://www.g2b.go.kr:8101/ep/tbid/info/bidInfoDtl.do?bidNo=20260601001-00",
-    category: "국제회의",
-    status: "입찰진행중",
-    event_start_date: new Date(now.getTime() + 8640000000).toISOString(),
-    event_end_date: new Date(now.getTime() + 8985600000).toISOString(),
-    event_location: "부산 벡스코(BEXCO)",
-    user_status: "검토대기",
-    assignee: "",
-    memo: "최우선 검토 필요. 대규모 정상회의 건으로 당사 포트폴리오에 매우 중요함."
-  },
-  {
-    id: "mock-2",
-    bid_notice_no: "20260602002",
-    bid_notice_ord: "00",
-    title: "제15회 아시아태평양 바이오 컨퍼런스 기획 및 운영 대행",
-    org_name: "한국보건산업진흥원",
-    const_org_name: "조달청",
-    bid_start_date: new Date(now.getTime() - 172800000).toISOString(),
-    bid_end_date: new Date(now.getTime() + 172800000).toISOString(), // D-2
-    budget: 280000000,
-    link: "https://www.g2b.go.kr:8101/ep/tbid/info/bidInfoDtl.do?bidNo=20260602002-00",
-    category: "컨퍼런스",
-    status: "입찰진행중",
-    event_start_date: new Date(now.getTime() + 5184000000).toISOString(),
-    event_end_date: new Date(now.getTime() + 5443200000).toISOString(),
-    event_location: "서울 코엑스(COEX)",
-    user_status: "지원검토",
-    assignee: "홍길동 대리",
-    memo: "학술 심포지엄 및 네트워킹 행사 기획 능력 검토 필요."
-  },
-  {
-    id: "mock-3",
-    bid_notice_no: "20260603003",
-    bid_notice_ord: "00",
-    title: "2026 글로벌 스타트업 서밋 및 투자 포럼 운영 용역",
-    org_name: "중소벤처기업부",
-    const_org_name: "중소벤처기업부",
-    bid_start_date: new Date(now.getTime() - 259200000).toISOString(),
-    bid_end_date: new Date(now.getTime() + 604800000).toISOString(), // D-7
-    budget: 350000000,
-    link: "https://www.g2b.go.kr:8101/ep/tbid/info/bidInfoDtl.do?bidNo=20260603003-00",
-    category: "포럼",
-    status: "입찰진행중",
-    event_start_date: new Date(now.getTime() + 10368000000).toISOString(),
-    event_end_date: new Date(now.getTime() + 10540800000).toISOString(),
-    event_location: "인천 송도컨벤시아",
-    user_status: "검토대기",
-    assignee: "",
-    memo: "투자 연계 및 네트워킹 리셉션 기획 포함."
-  },
-  {
-    id: "mock-4",
-    bid_notice_no: "20260604004",
-    bid_notice_ord: "01",
-    title: "탄소중립 미래에너지 국제 세미나 행사 대행",
-    org_name: "산업통상자원부",
-    const_org_name: "산업통상자원부",
-    bid_start_date: now.toISOString(),
-    bid_end_date: new Date(now.getTime() + 432000000).toISOString(), // D-5
-    budget: 120000000,
-    link: "https://www.g2b.go.kr:8101/ep/tbid/info/bidInfoDtl.do?bidNo=20260604004-01",
-    category: "세미나",
-    status: "입찰진행중",
-    event_start_date: new Date(now.getTime() + 3888000000).toISOString(),
-    event_end_date: new Date(now.getTime() + 3974400000).toISOString(),
-    event_location: "대전 컨벤션센터(DCC)",
-    user_status: "검토대기",
-    assignee: "",
-    memo: "예산은 작으나 공공 포트폴리오 확보용으로 적절함."
-  },
-  {
-    id: "mock-5",
-    bid_notice_no: "20260605005",
-    bid_notice_ord: "00",
-    title: "2026 K-MICE 산업 박람회 및 비즈니스 미팅 운영대행 용역",
-    org_name: "한국관광공사",
-    const_org_name: "조달청",
-    bid_start_date: now.toISOString(),
-    bid_end_date: new Date(now.getTime() + 864000000).toISOString(), // D-10
-    budget: 500000000,
-    link: "https://www.g2b.go.kr:8101/ep/tbid/info/bidInfoDtl.do?bidNo=20260605005-00",
-    category: "MICE",
-    status: "입찰진행중",
-    event_start_date: new Date(now.getTime() + 12960000000).toISOString(),
-    event_end_date: new Date(now.getTime() + 13219200000).toISOString(),
-    event_location: "경주화백컨벤션센터(HICO)",
-    user_status: "검토대기",
-    assignee: "",
-    memo: "전시 부스 및 비즈니스 매칭 시스템 구축 노하우 요구됨."
-  },
-  {
-    id: "mock-6",
-    bid_notice_no: "20260606006",
-    bid_notice_ord: "00",
-    title: "디지털 헬스케어 미래 포럼 및 전시 운영 대행",
-    org_name: "보건복지부",
-    const_org_name: "보건복지부",
-    bid_start_date: new Date(now.getTime() - 345600000).toISOString(),
-    bid_end_date: new Date(now.getTime() - 86400000).toISOString(), // Closed
-    budget: 220000000,
-    link: "https://www.g2b.go.kr:8101/ep/tbid/info/bidInfoDtl.do?bidNo=20260606006-00",
-    category: "전시",
-    status: "마감",
-    event_start_date: new Date(now.getTime() + 2592000000).toISOString(),
-    event_end_date: new Date(now.getTime() + 2764800000).toISOString(),
-    event_location: "서울 세텍(SETEC)",
-    user_status: "검토대기",
-    assignee: "",
-    memo: "마감 기한이 지난 건으로 아카이브 확인용."
-  }
-];
-
-const calculateFallbackStats = (tendersList) => {
-  return {
-    total_count: tendersList.length,
-    pending_count: tendersList.filter(t => t.user_status === "검토대기").length,
-    reviewing_count: tendersList.filter(t => t.user_status === "지원검토").length,
-    preparing_count: tendersList.filter(t => t.user_status === "제출준비").length,
-    submitted_count: tendersList.filter(t => t.user_status === "제출완료").length,
-    excluded_count: tendersList.filter(t => t.user_status === "제외").length,
-    active_budget_sum: tendersList.reduce((acc, t) => t.status === "입찰진행중" ? acc + t.budget : acc, 0)
-  };
-};
-
 export default function Dashboard() {
   // Data state
   const [tenders, setTenders] = useState([]);
@@ -161,7 +24,6 @@ export default function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [selectedTender, setSelectedTender] = useState(null);
   const [toast, setToast] = useState(null);
-  const [isFallbackMode, setIsFallbackMode] = useState(false);
   
   // Filter/Sort states
   const [searchTerm, setSearchTerm] = useState("");
@@ -203,54 +65,14 @@ export default function Dashboard() {
       if (tendersRes.ok && statsRes.ok) {
         const tendersData = await tendersRes.json();
         const statsData = await statsRes.json();
-        
-        if (tendersData && tendersData.length > 0) {
-          setTenders(tendersData);
-          setStats(statsData);
-          setIsFallbackMode(false);
-          return;
-        }
+        setTenders(tendersData);
+        setStats(statsData);
+      } else {
+        showToast("데이터를 불러오지 못했습니다.", "error");
       }
-      throw new Error("No data or bad API response");
     } catch (e) {
-      console.warn("Backend API unavailable, falling back to frontend mock data:", e);
-      setIsFallbackMode(true);
-      
-      // Filter FALLBACK_TENDERS in memory
-      let filtered = [...FALLBACK_TENDERS];
-      
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        filtered = filtered.filter(t => 
-          t.title.toLowerCase().includes(term) || 
-          (t.org_name && t.org_name.toLowerCase().includes(term)) || 
-          (t.const_org_name && t.const_org_name.toLowerCase().includes(term))
-        );
-      }
-      
-      if (selectedCategory && selectedCategory !== "전체") {
-        filtered = filtered.filter(t => t.category === selectedCategory);
-      }
-      
-      if (selectedUserStatus && selectedUserStatus !== "전체") {
-        filtered = filtered.filter(t => t.user_status === selectedUserStatus);
-      }
-      
-      // Sort
-      if (sortBy === "budget") {
-        filtered.sort((a, b) => b.budget - a.budget);
-      } else if (sortBy === "deadline") {
-        filtered.sort((a, b) => {
-          if (!a.bid_end_date) return 1;
-          if (!b.bid_end_date) return -1;
-          return new Date(a.bid_end_date) - new Date(b.bid_end_date);
-        });
-      } else { // latest
-        filtered.sort((a, b) => new Date(b.bid_start_date) - new Date(a.bid_start_date));
-      }
-      
-      setTenders(filtered);
-      setStats(calculateFallbackStats(FALLBACK_TENDERS));
+      console.error(e);
+      showToast("서버 연결 실패", "error");
     } finally {
       setLoading(false);
     }
@@ -309,49 +131,28 @@ export default function Dashboard() {
       event_end_date: formData.event_end_date ? `${formData.event_end_date}T00:00:00Z` : null
     };
 
-    let savedOnServer = false;
+    try {
+      const res = await fetch(`/api/tenders/${selectedTender.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-    if (!isFallbackMode) {
-      try {
-        const res = await fetch(`/api/tenders/${selectedTender.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          const updated = await res.json();
-          showToast("상태 정보가 업데이트되었습니다.", "success");
-          setTenders(prev => prev.map(item => item.id === updated.id ? updated : item));
-          const statsRes = await fetch("/api/stats");
-          if (statsRes.ok) {
-            setStats(await statsRes.json());
-          }
-          setSelectedTender(updated);
-          savedOnServer = true;
+      if (res.ok) {
+        const updated = await res.json();
+        showToast("상태 정보가 업데이트되었습니다.", "success");
+        setTenders(prev => prev.map(item => item.id === updated.id ? updated : item));
+        const statsRes = await fetch("/api/stats");
+        if (statsRes.ok) {
+          setStats(await statsRes.json());
         }
-      } catch (err) {
-        console.warn("Server save failed, falling back to local updates:", err);
+        setSelectedTender(updated);
+      } else {
+        const err = await res.json();
+        showToast(`업데이트 실패: ${err.detail || "오류"}`, "error");
       }
-    }
-
-    if (!savedOnServer) {
-      // Local fallback update
-      const updatedLocal = {
-        ...selectedTender,
-        ...payload
-      };
-      
-      // Update our fallback data array in memory
-      const index = FALLBACK_TENDERS.findIndex(t => t.id === selectedTender.id || t.bid_notice_no === selectedTender.bid_notice_no);
-      if (index !== -1) {
-        FALLBACK_TENDERS[index] = updatedLocal;
-      }
-      
-      showToast("로컬 상태 정보가 임시 저장되었습니다 (데모 모드).", "success");
-      setTenders(prev => prev.map(item => (item.id === selectedTender.id || item.bid_notice_no === selectedTender.bid_notice_no) ? updatedLocal : item));
-      setStats(calculateFallbackStats(FALLBACK_TENDERS));
-      setSelectedTender(updatedLocal);
+    } catch (err) {
+      showToast("업데이트 중 서버 오류 발생", "error");
     }
   };
 
@@ -462,18 +263,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Fallback Mode Alert Banner */}
-        {isFallbackMode && (
-          <div className="bg-[#2D161F] border border-[#F43F5E]/30 rounded-xl p-4 flex items-center space-x-3.5 text-[#F43F5E] shadow-[0_0_15px_rgba(244,63,94,0.05)]">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 animate-pulse" />
-            <div>
-              <p className="text-xs font-extrabold">로컬 데모(오프라인) 모드 작동 중</p>
-              <p className="text-[10px] text-[#A0AEC0] mt-0.5 leading-relaxed">
-                서버/데이터베이스 통신 오류로 인해 실시간 데이터를 연동하지 못하여, 프론트엔드 자체 백업 데이터로 대시보드를 구성했습니다. 담당자 지정 및 메모 등의 편집 내역은 브라우저 세션에 임시 반영됩니다.
-              </p>
-            </div>
-          </div>
-        )}
+
 
         {/* 1. Statistics Cards Widget Banner */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
