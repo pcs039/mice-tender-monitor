@@ -25,7 +25,7 @@ export default function Dashboard() {
   // Scroll side drawer to top when selected tender changes (opens)
   useEffect(() => {
     if (selectedTender && drawerFormRef.current) {
-      drawerFormRef.current.scrollTop = 0;
+      drawerFormRef.current.scrollTo({ top: 0, behavior: "instant" });
     }
   }, [selectedTender]);
   
@@ -662,34 +662,48 @@ export default function Dashboard() {
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
               className="fixed inset-y-0 right-0 w-full md:max-w-xl bg-[#0E1321] border-l border-[#242F4D] shadow-2xl z-50 flex flex-col pointer-events-auto"
             >
-              {/* Drawer Header */}
-              <div className="p-6 border-b border-[#242F4D]/50 bg-[#090D18] flex items-center justify-between">
-                <div>
-                  <span className="bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
-                    공고 상세 & 입찰 기획
-                  </span>
-                  <h2 className="text-lg font-bold text-white mt-1">입찰 검토 및 상태 관리</h2>
+              {/* Drawer Absolute Top Scroll Container */}
+              <form 
+                onSubmit={handleSave} 
+                ref={drawerFormRef} 
+                className="h-full overflow-y-auto p-6 space-y-6 flex flex-col"
+                style={{ boxSizing: "border-box", paddingTop: "32px" }}
+              >
+                {/* Drawer Header (Scrollable) */}
+                <div className="flex items-center justify-between pb-5 border-b border-[#242F4D]/50">
+                  <div>
+                    <span className="bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
+                      공고 상세 & 입찰 기획
+                    </span>
+                    <h2 className="text-lg font-bold text-white mt-1">입찰 검토 및 상태 관리</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTender(null)}
+                    className="p-1.5 bg-[#1C253C] hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-white rounded-lg cursor-pointer transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelectedTender(null)}
-                  className="p-1.5 bg-[#1C253C] hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-white rounded-lg cursor-pointer transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Drawer Body (Scrollable Form) */}
-              <form onSubmit={handleSave} ref={drawerFormRef} className="flex-1 overflow-y-auto p-6 space-y-6">
                 
                 {/* Tender Base Specifications Info Box */}
-                <div className="bg-[#172033] border border-[#2D3E66] rounded-xl p-4.5 space-y-3.5">
+                <div className="bg-[#172033] border border-[#2D3E66] rounded-xl p-4.5 space-y-3.5" style={{ height: "auto" }}>
                   <div>
                     <span className="text-[10px] text-slate-400 block font-mono">공고 기관 (수요처)</span>
                     <span className="text-white text-sm font-bold">{selectedTender.org_name}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block">용역 공고명</span>
-                    <span className="text-white text-sm font-semibold leading-relaxed block mt-0.5 whitespace-normal break-keep">
+                    <span 
+                      className="text-white text-sm font-semibold leading-relaxed block mt-0.5"
+                      style={{ 
+                        whiteSpace: "normal", 
+                        wordWrap: "break-word", 
+                        wordBreak: "break-all",
+                        display: "block",
+                        height: "auto"
+                      }}
+                    >
                       {selectedTender.title}
                     </span>
                   </div>
