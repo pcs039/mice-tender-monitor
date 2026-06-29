@@ -16,6 +16,13 @@ OPEN_API_KEY = os.getenv("OPEN_API_KEY")
 # MICE Keywords to monitor (as specified by user)
 KEYWORDS = ['국제회의', '세미나', '컨퍼런스', '콘퍼런스', '포럼', 'MICE', '마이스', '운영대행', '회의']
 
+# Keywords to explicitly exclude (IT system integration, equipment purchases, video conferencing builds, etc.)
+EXCLUDE_KEYWORDS = [
+    "전시", "시스템 구축", "시스템구축", "영상회의", "화상회의", 
+    "장비 구매", "장비구매", "장비 도입", "장비도입", "하드웨어", 
+    "서버 구축", "서버구축", "네트워크 구축", "네트워크구축", "인프라 구축", "인프라구축"
+]
+
 # Save tenders to Supabase using HTTP REST API
 async def save_tenders_to_db(tenders):
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -159,8 +166,8 @@ async def fetch_and_filter_tenders():
                 if not title or not notice_no:
                     continue
                     
-                # Explicitly exclude any bid notice containing "전시" (exhibition) in the title
-                if "전시" in title:
+                # Explicitly exclude undesired keywords in title (SI, IT hardware, system construction, etc.)
+                if any(ek in title for ek in EXCLUDE_KEYWORDS):
                     continue
                     
                 # Match title against our MICE keywords (case-insensitive)
