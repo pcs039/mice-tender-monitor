@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Search, Calendar, DollarSign, User, ClipboardList, MapPin, 
   RotateCw, X, ChevronRight, TrendingUp, CheckCircle, Clock, 
@@ -20,6 +20,14 @@ export default function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [selectedTender, setSelectedTender] = useState(null);
   const [toast, setToast] = useState(null);
+  const drawerFormRef = useRef(null);
+
+  // Scroll side drawer to top when selected tender changes (opens)
+  useEffect(() => {
+    if (selectedTender && drawerFormRef.current) {
+      drawerFormRef.current.scrollTop = 0;
+    }
+  }, [selectedTender]);
   
   // Filter/Sort states
   const [searchTerm, setSearchTerm] = useState("");
@@ -671,7 +679,7 @@ export default function Dashboard() {
               </div>
 
               {/* Drawer Body (Scrollable Form) */}
-              <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
+              <form onSubmit={handleSave} ref={drawerFormRef} className="flex-1 overflow-y-auto p-6 space-y-6">
                 
                 {/* Tender Base Specifications Info Box */}
                 <div className="bg-[#172033] border border-[#2D3E66] rounded-xl p-4.5 space-y-3.5">
@@ -681,7 +689,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block">용역 공고명</span>
-                    <span className="text-white text-sm font-semibold leading-relaxed block mt-0.5">
+                    <span className="text-white text-sm font-semibold leading-relaxed block mt-0.5 whitespace-normal break-keep">
                       {selectedTender.title}
                     </span>
                   </div>
