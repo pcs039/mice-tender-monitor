@@ -669,6 +669,25 @@ export default function Dashboard() {
                 className="h-full overflow-y-auto p-6 space-y-6 flex flex-col"
                 style={{ boxSizing: "border-box", paddingTop: "32px" }}
               >
+                {/* CSS Priority Overrides for Title Wrap & Card Height */}
+                <style>{`
+                  .force-wrap-title {
+                    white-space: normal !important;
+                    overflow: visible !important;
+                    text-overflow: clip !important;
+                    word-break: break-all !important;
+                    word-wrap: break-word !important;
+                    display: block !important;
+                    height: auto !important;
+                    max-height: none !important;
+                  }
+                  .force-auto-height-card {
+                    height: auto !important;
+                    max-height: none !important;
+                    padding: 16px !important;
+                  }
+                `}</style>
+
                 {/* Drawer Header (Scrollable) */}
                 <div className="flex items-center justify-between pb-5 border-b border-[#242F4D]/50">
                   <div>
@@ -687,23 +706,14 @@ export default function Dashboard() {
                 </div>
                 
                 {/* Tender Base Specifications Info Box */}
-                <div className="bg-[#172033] border border-[#2D3E66] rounded-xl p-4.5 space-y-3.5" style={{ height: "auto" }}>
+                <div className="bg-[#172033] border border-[#2D3E66] rounded-xl space-y-3.5 force-auto-height-card">
                   <div>
                     <span className="text-[10px] text-slate-400 block font-mono">공고 기관 (수요처)</span>
                     <span className="text-white text-sm font-bold">{selectedTender.org_name}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block">용역 공고명</span>
-                    <span 
-                      className="text-white text-sm font-semibold leading-relaxed block mt-0.5"
-                      style={{ 
-                        whiteSpace: "normal", 
-                        wordWrap: "break-word", 
-                        wordBreak: "break-all",
-                        display: "block",
-                        height: "auto"
-                      }}
-                    >
+                    <span className="text-white text-sm font-semibold leading-relaxed block mt-0.5 force-wrap-title">
                       {selectedTender.title}
                     </span>
                   </div>
