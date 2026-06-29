@@ -28,29 +28,50 @@ app.add_middleware(
 # Startup database connection pool
 @app.on_event("startup")
 async def startup():
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL is not configured in .env")
-    print("Initializing database connection pool...")
-    app.state.pool = await asyncpg.create_pool(
-        DATABASE_URL,
-        min_size=1,
-        max_size=10,
-        max_inactive_connection_lifetime=300.0,
-        statement_cache_size=0
-    )
-    print("Database pool initialized successfully!")
+    if DATABASE_URL:
+        try:
+            print("Initializing database connection pool on startup...")
+            app.state.pool = await asyncpg.create_pool(
+                DATABASE_URL,
+                min_size=1,
+                max_size=5,
+                max_inactive_connection_lifetime=300.0,
+                statement_cache_size=0
+            )
+            print("Database pool initialized successfully!")
+        except Exception as e:
+            print(f"Startup connection pool initialization bypassed: {e}")
 
 # Shutdown pool
 @app.on_event("shutdown")
 async def shutdown():
-    print("Closing database connection pool...")
-    await app.state.pool.close()
-    print("Database pool closed.")
+    if hasattr(app.state, "pool") and app.state.pool is not None:
+        print("Closing database connection pool...")
+        await app.state.pool.close()
+        print("Database pool closed.")
+
+import asyncio
+db_pool_lock = asyncio.Lock()
 
 # Dependency to get connection from pool
 async def get_db_conn(request: Request):
+    if not hasattr(request.app.state, "pool") or request.app.state.pool is None:
+        async with db_pool_lock:
+            if not hasattr(request.app.state, "pool") or request.app.state.pool is None:
+                db_url = os.getenv("DATABASE_URL")
+                if not db_url:
+                    raise ValueError("DATABASE_URL environment variable is missing!")
+                print("Lazily creating database connection pool for Vercel Serverless Function...")
+                request.app.state.pool = await asyncpg.create_pool(
+                    db_url,
+                    min_size=0,
+                    max_size=5,
+                    max_inactive_connection_lifetime=300.0,
+                    statement_cache_size=0
+                )
     async with request.app.state.pool.acquire() as conn:
         yield conn
+
 
 # Pydantic models for request bodies
 class TenderUpdate(BaseModel):
