@@ -484,6 +484,7 @@ export default function Dashboard() {
                 <tr className="bg-[#080D1A]/80 border-b border-[#242F4D]/50 text-slate-400 text-xs font-bold tracking-wider">
                   <th className="px-6 py-4">D-Day</th>
                   <th className="px-6 py-4">공고번호</th>
+                  <th className="px-6 py-4">게시일자</th>
                   <th className="px-6 py-4">수요기관 (발주처)</th>
                   <th className="px-6 py-4">입찰 공고명 (행사명)</th>
                   <th className="px-6 py-4 text-right">예산 규모</th>
@@ -495,7 +496,7 @@ export default function Dashboard() {
               <tbody className="divide-y divide-[#242F4D]/20">
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="text-center py-20 text-slate-400">
+                    <td colSpan="9" className="text-center py-20 text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <RotateCw className="w-8 h-8 text-brand-cyan animate-spin" />
                         <span className="text-sm font-semibold">입찰 데이터 불러오는 중...</span>
@@ -504,7 +505,7 @@ export default function Dashboard() {
                   </tr>
                 ) : getFilteredTenders().length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="text-center py-24 text-slate-400">
+                    <td colSpan="9" className="text-center py-24 text-slate-400">
                       <div className="flex flex-col items-center justify-center space-y-2">
                         <AlertCircle className="w-8 h-8 text-slate-500" />
                         <p className="text-sm font-semibold">조건에 맞는 입찰 공고가 존재하지 않습니다.</p>
@@ -534,6 +535,17 @@ export default function Dashboard() {
                         <td className="px-6 py-4.5 whitespace-nowrap">
                           <div className="font-bold text-slate-300 text-xs font-mono">{tender.bid_notice_no}</div>
                           <div className="text-[10px] text-slate-500 font-mono mt-0.5">차수: {tender.bid_notice_ord}</div>
+                        </td>
+
+                        {/* Notice Date */}
+                        <td className="px-6 py-4.5 whitespace-nowrap">
+                          <div className="text-slate-300 text-xs font-mono">
+                            {tender.notice_date 
+                              ? new Date(tender.notice_date).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" }) 
+                              : tender.bid_start_date
+                                ? new Date(tender.bid_start_date).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })
+                                : "-"}
+                          </div>
                         </td>
                         
                         {/* Demand Org */}

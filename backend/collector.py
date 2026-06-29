@@ -18,9 +18,9 @@ KEYWORDS = ['국제회의', '세미나', '컨퍼런스', '콘퍼런스', '포럼
 
 # Keywords to explicitly exclude (IT system integration, equipment purchases, video conferencing builds, etc.)
 EXCLUDE_KEYWORDS = [
-    "전시", "시스템 구축", "시스템구축", "영상회의", "화상회의", 
-    "장비 구매", "장비구매", "장비 도입", "장비도입", "하드웨어", 
-    "서버 구축", "서버구축", "네트워크 구축", "네트워크구축", "인프라 구축", "인프라구축"
+    "전시", "공사", "구축", "리모델링", "인테리어", "환경개선", 
+    "물품", "구매", "제조", "시스템", "유지보수", 
+    "영상회의", "화상회의", "장비", "하드웨어"
 ]
 
 # Save tenders to Supabase using HTTP REST API
@@ -67,7 +67,7 @@ async def save_tenders_to_db(tenders):
         t["assignee"] = existing.get("assignee") or t.get("assignee")
         
         # Convert any datetime objects to ISO strings
-        for k in ["bid_start_date", "bid_end_date", "event_start_date", "event_end_date"]:
+        for k in ["bid_start_date", "bid_end_date", "notice_date", "event_start_date", "event_end_date"]:
             if isinstance(t.get(k), datetime):
                 t[k] = t[k].isoformat()
                 
@@ -187,13 +187,21 @@ async def fetch_and_filter_tenders():
                     existing["category"] = ",".join(combined_kws)
                     continue
                 
-                # Check status
+                # Check status and deadlines
                 status = "입찰진행중"
                 ntce_div = item.get("ntceKindNm", "")
                 if "취소" in ntce_div or "취소" in title:
                     status = "취소"
-                elif parse_api_date(item.get("bidClseDt")) and datetime.now() > parse_api_date(item.get("bidClseDt")):
-                    status = "마감"
+                else:
+                    bid_clse_dt = parse_api_date(item.get("bidClseDt"))
+                    if bid_clse_dt:
+                        if datetime.now() > bid_clse_dt:
+                            status = "마감"
+                    else:
+                        # Fallback to opengDt (opening date) if bidClseDt is missing
+                        openg_dt = parse_api_date(item.get("opengDt"))
+                        if openg_dt and datetime.now() > openg_dt:
+                            status = "마감"
                     
                 budget_str = item.get("asignBdgtAmt") or item.get("bdgtAmt") or item.get("presmptPrce") or "0"
                 try:
@@ -211,6 +219,7 @@ async def fetch_and_filter_tenders():
                     "const_org_name": item.get("ntceInsttNm"),
                     "bid_start_date": parse_api_date(item.get("bidBeginDt") or item.get("bidNtceDt")),
                     "bid_end_date": parse_api_date(item.get("bidClseDt")),
+                    "notice_date": parse_api_date(item.get("bidNtceDt")),
                     "budget": budget,
                     "link": link,
                     "category": ",".join(matched_kws),

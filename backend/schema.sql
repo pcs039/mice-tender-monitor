@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.tenders (
     link TEXT,
     category VARCHAR(100),
     status VARCHAR(50) DEFAULT '입찰진행중',
+    notice_date TIMESTAMP WITH TIME ZONE,
     
     -- Added columns for MICE event details (for RFP parsing/manual entry)
     event_start_date TIMESTAMP WITH TIME ZONE,
